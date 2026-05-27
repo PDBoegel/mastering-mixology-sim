@@ -1,0 +1,23 @@
+# Per-target chunked RDS results (recomputable from the scripts)
+results/
+results_*/
+
+# Per-turn decision logs (large, regeneratable)
+decisions_p*.csv
+opt_decisions_p*.csv
+
+# Single-trial beam-search verification output
+beam_K*_s*.csv
+true_opt_*.csv
+
+# Per-target summary outputs from sweeps
+summary_results_*.csv
+summary_results_*.png
+
+# Stale exploration artifact
+UsersUsermixology-repo/
+
+# R defaults
+.Rhistory
+.RData
+.Rproj.user/
