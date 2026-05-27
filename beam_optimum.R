@@ -2,9 +2,10 @@
 #
 # State at each turn: a matrix (m, a, l, g).  Expand all 7 actions, dedup
 # by (m, a, l) keeping min g, prune by admissible UB, keep top-K by f =
-# g + ceil(max(remaining)/14).  As K grows, the answer converges to the
-# exact optimum.  Verification: re-run with two beam widths and confirm
-# the answer matches.
+# g + ceil(max(remaining)/28).  /28 is the max resin per potion in any
+# colour under the doubled-yield rules (20 base x 1.4 three-batch bonus on
+# the doubled colour). As K grows, the answer converges to the exact
+# optimum. Verification: re-run with two beam widths and confirm match.
 #
 # CLI:  Rscript beam_optimum.R <seed_start> <n_trials> <beam_K> <out_csv>
 source("mixology_sim.R")
@@ -94,7 +95,7 @@ beam_search <- function(orders_seq, ub, K) {
 
     # Prune by f = g + h
     rem <- pmax(TM - expanded[, 1L], TA - expanded[, 2L], TL - expanded[, 3L])
-    h <- as.integer(ceiling(rem / 14))
+    h <- as.integer(ceiling(rem / 28))
     f <- expanded[, 4L] + h
     keep <- f < best
     expanded <- expanded[keep, , drop = FALSE]

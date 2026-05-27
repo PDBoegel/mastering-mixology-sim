@@ -39,9 +39,10 @@ potions <- tibble::tibble(
   mox_paste = c(  3,   0,   0,   2,   2,   1,   0,   1,   0,   1),
   aga_paste = c(  0,   3,   0,   1,   0,   2,   2,   0,   1,   1),
   lye_paste = c(  0,   0,   3,   0,   1,   0,   1,   2,   2,   1),
-  mox_resin = c( 10,   0,   0,  10,  10,  10,   0,  10,   0,  10),
-  aga_resin = c(  0,  10,   0,  10,   0,  10,  10,   0,  10,  10),
-  lye_resin = c(  0,   0,  10,   0,  10,   0,  10,  10,  10,  10),
+  # Resin rule: XXX -> 20 X; XXY -> 20 X + 10 Y; XYZ (MAL only) -> 20/20/20
+  mox_resin = c( 20,   0,   0,  20,  20,  10,   0,  10,   0,  20),
+  aga_resin = c(  0,  20,   0,  10,   0,  20,  20,   0,  10,  20),
+  lye_resin = c(  0,   0,  20,   0,  10,   0,  10,  20,  20,  20),
   weight    = c(  5,   5,   5,   4,   4,   4,   4,   4,   4,   3)
 )
 
@@ -168,11 +169,10 @@ FALLBACKS <- list(
   },
   # Per-turn optimizer: evaluates every non-empty subset of the 3 slots and
   # picks the one minimizing (potions in subset) + (max remaining deficit
-  # after the action) / 8. The /8 term is the lye-floor lower bound on
-  # potions still needed; the +n term is the cost of this action. Both are
-  # in the same units, so argmin is a 1-step lookahead. The /8 divisor
-  # (greedy's per-potion rate) ranks subset sizes better than tighter
-  # divisors empirically.
+  # after the action) / 14. The /14 term is approximately greedy's per-
+  # potion fill rate per colour (E[resin/slot] = 400/42 = 9.52 under the
+  # XXX=20 / XXY=20+10 / XYZ=20/20/20 yield rules, x 1.4 bonus = 13.33);
+  # 14 was picked as a clean round number in the same ballpark.
   lookahead_greedy = function(o, d) {
     best_score <- Inf
     best_slots <- c(1L, 2L, 3L)
@@ -180,7 +180,7 @@ FALLBACKS <- list(
       slots <- which(c(bitwAnd(mask, 1L), bitwAnd(mask, 2L), bitwAnd(mask, 4L)) > 0L)
       n <- length(slots)
       gained <- colSums(RESIN_MAT[o[slots], , drop = FALSE]) * BONUS[n]
-      h <- max(pmax(d - gained, 0)) / 8
+      h <- max(pmax(d - gained, 0)) / 14
       score <- n + h
       if (score < best_score) {
         best_score <- score

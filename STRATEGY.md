@@ -29,25 +29,28 @@ paste type(s) it uses, with weights for order-roll probability.
 
 | Code | Name | Paste (M/A/L) | Resin (M/A/L) | Order weight |
 |---|---|---|---|---:|
-| MMM | Mammoth-might mix | 3 / 0 / 0 | 10 / 0 / 0 | 5 |
-| AAA | Alco-augmentator | 0 / 3 / 0 | 0 / 10 / 0 | 5 |
-| LLL | Liplack liquor | 0 / 0 / 3 | 0 / 0 / 10 | 5 |
-| MMA | Mystic Mana Amalgam | 2 / 1 / 0 | 10 / 10 / 0 | 4 |
-| MML | Marley's Moonlight | 2 / 0 / 1 | 10 / 0 / 10 | 4 |
-| AAM | Azure Aura Mix | 1 / 2 / 0 | 10 / 10 / 0 | 4 |
-| ALA | Aqualux Amalgam | 0 / 2 / 1 | 0 / 10 / 10 | 4 |
-| MLL | Megalite Liquid | 1 / 0 / 2 | 10 / 0 / 10 | 4 |
-| ALL | Anti-leech Lotion | 0 / 1 / 2 | 0 / 10 / 10 | 4 |
-| MAL | Mixalot | 1 / 1 / 1 | 10 / 10 / 10 | 3 |
+| MMM | Mammoth-might mix | 3 / 0 / 0 | 20 / 0 / 0 | 5 |
+| AAA | Alco-augmentator | 0 / 3 / 0 | 0 / 20 / 0 | 5 |
+| LLL | Liplack liquor | 0 / 0 / 3 | 0 / 0 / 20 | 5 |
+| MMA | Mystic Mana Amalgam | 2 / 1 / 0 | 20 / 10 / 0 | 4 |
+| MML | Marley's Moonlight | 2 / 0 / 1 | 20 / 0 / 10 | 4 |
+| AAM | Azure Aura Mix | 1 / 2 / 0 | 10 / 20 / 0 | 4 |
+| ALA | Aqualux Amalgam | 0 / 2 / 1 | 0 / 20 / 10 | 4 |
+| MLL | Megalite Liquid | 1 / 0 / 2 | 10 / 0 / 20 | 4 |
+| ALL | Anti-leech Lotion | 0 / 1 / 2 | 0 / 10 / 20 | 4 |
+| MAL | Mixalot | 1 / 1 / 1 | 20 / 20 / 20 | 3 |
 
 Total weight = 42. Each potion is **3 paste units = 30 paste** (the wiki uses
 "30 paste per potion"; the simulator's `*_paste` columns store units, i.e. ×10
 to convert to paste).
 
-Resin yield per slot has a *symmetric expectation* across the three colours
-(240 / 42 = 5.71 of each, +40 % bonus → 8.0 / colour / potion if always
-submitting 3). The asymmetry that makes this problem interesting comes from
-the **targets** the player picks: typically lye-dominant by 10–35 %.
+Resin yield rule: single-recipe potions (XXX) give 20 of X; two-recipe
+potions (XXY) give 20 of the doubled colour + 10 of the single; Mixalot
+(XYZ) gives 20 of every colour. Resin yield per slot has a *symmetric
+expectation* across the three colours (400 / 42 = 9.52 of each, ×1.4
+three-batch bonus → 13.33 / colour / potion under greedy). The asymmetry
+that makes this problem interesting comes from the **targets** the player
+picks: typically lye-dominant by 10–35 %.
 
 ---
 
@@ -131,13 +134,12 @@ Each target shape was benchmarked at 1,000 Monte-Carlo trials per policy.
 
 | Target (mox / aga / lye) | Shape | Winning policy | Mean potions | Δ vs `greedy` |
 |---|---|---|---:|---:|
-| 20k / 20k / 20k | Balanced | `mal_or_multi` ≈ `multi_resin` | 2,359 | −7 % |
-| 30k / 25k / 30k | Nearly balanced | `multi_resin` | 3,418 | −10 % |
-| 30k / 0 / 30k | Two colours only | `all_lye_bot` ≈ `two_dual_bot` | 3,404 | −10 % |
-| 30k / 30k / 50k | Lye strongly dominant | `two_dual_bot` | 4,664 | −25 % |
-| 50k / 30k / 50k | Mox = lye tied bottlenecks | `all_lye_bot` ≈ `two_dual_bot` | 5,671 | −10 % |
-| 45k / 39k / 53k *(remaining)* | Lye modestly dominant | `two_plus_bn` | 5,681 | −14 % |
-| **61k / 53k / 71k** *(full 8-item)* | Lye modestly dominant | `meta` (adaptive) | **7,502** | **−15 %** |
+| **61k / 53k / 71k** *(full 8-item)* | Lye modestly dominant | `meta` (adaptive) | **4,596** | **−13 %** |
+
+(Earlier target-shape benchmarks at this section's original numbers were
+run against the *old* 10/10/10-per-color resin assumption; the absolute
+numbers are roughly 60 % of those, but the qualitative pattern below
+holds.)
 
 ### Three regimes in plain language
 
@@ -241,26 +243,35 @@ nearly balanced — submitting more than one risks overshoot).
 
 | Variant | `t_dual_in` | `t_balanced_in` | hysteresis | Mean potions | Trials |
 |---|---:|---:|---:|---:|---:|
-| `meta_d50_b20_h05` | 50 % | 20 % | 5 % | 7,488 | 400 |
-| `meta_d20_b20_h05` | 20 % | 20 % | 5 % | 7,490 | 300 |
-| `meta_d20_b10_h10` | 20 % | 10 % | 10 % | 7,497 | 500 |
-| **`meta_d20_b10_h05`** | **20 %** | **10 %** | **5 %** | **7,502** | **1000** |
-| `meta_d30_b10_h05` | 30 % | 10 % | 5 % | 7,502 | 800 |
-| `meta_d20_b10_h02` | 20 % | 10 % | 2 % | 7,504 | 300 |
-| `meta_d25_b10_h05` | 25 % | 10 % | 5 % | 7,506 | 100 |
-| `meta_d20_b05_h05` | 20 % | 5 % | 5 % | 7,548 | 1000 |
-| `meta_d15_b05_h05` | 15 % | 5 % | 5 % | 7,549 | 1000 |
-| `meta_d10_b05_h05` | 10 % | 5 % | 5 % | 7,561 | 1000 |
-| `meta_d05_b05_h05` | 5 % | 5 % | 5 % | 7,572 | 1000 |
-| `meta_d05_b02_h05` | 5 % | 2 % | 5 % | 7,591 | 1000 |
-| — | best static policy (`two_plus_bn`) | | | 7,633 | 1000 |
-| — | `greedy` baseline | | | 8,813 | 1000 |
+| `meta_d50_b20_h05` | 50 % | 20 % | 5 % | 4,596 | 900 |
+| `meta_d20_b20_h05` | 20 % | 20 % | 5 % | 4,597 | 1,000 |
+| `meta_d30_b10_h05` | 30 % | 10 % | 5 % | 4,611 | 1,000 |
+| **`meta_d20_b10_h05`** | **20 %** | **10 %** | **5 %** | **4,612** | **1,000** |
+| `meta_d40_b10_h05` | 40 % | 10 % | 5 % | 4,613 | 700 |
+| `meta_d20_b10_h10` | 20 % | 10 % | 10 % | 4,613 | 1,000 |
+| `meta_d25_b10_h05` | 25 % | 10 % | 5 % | 4,613 | 900 |
+| `meta_d20_b10_h02` | 20 % | 10 % | 2 % | 4,614 | 700 |
+| `meta_d05_b05_h05` | 5 % | 5 % | 5 % | 4,625 | ~700 |
+| `meta_d10_b05_h05` | 10 % | 5 % | 5 % | 4,628 | ~700 |
+| `meta_d05_b02_h05` | 5 % | 2 % | 5 % | 4,633 | ~700 |
+| `meta_d20_b05_h05` | 20 % | 5 % | 5 % | 4,633 | ~700 |
+| `meta_d15_b05_h05` | 15 % | 5 % | 5 % | 4,633 | ~700 |
+| `meta_d10_b02_h05` | 10 % | 2 % | 5 % | 4,637 | ~700 |
+| — | best static policy (`two_plus_bn`) | | | 4,606 | 100 |
+| — | `greedy` baseline | | | 5,287 | 1,000 |
 
-The top seven variants are within ~18 potions of each other — well inside the
-p10–p90 spread of any single variant (~85 potions). The optimal threshold is
-not a sharp point; it's a **broad region**. Inside the region the choice
-doesn't matter; outside it, the meta starts behaving like its weaker
-sub-policy.
+The top ten variants are within ~18 potions of each other — well inside
+the p10–p90 spread of any single variant (~70 potions). The optimal
+threshold is not a sharp point; it's a **broad region**. Inside the region
+the choice doesn't matter; outside it, the meta starts behaving like its
+weaker sub-policy.
+
+Notably, with the correct doubled-resin yields, the meta's gain over the
+best static policy (`two_plus_bn` at 4,606) shrinks to ~10 potions — well
+inside noise — because MAL contributes 60 resin per potion (vs the 30 we
+had assumed earlier), making the simpler static rule nearly as good as the
+adaptive one. The meta still avoids late-game overshoot edge cases but the
+size of that edge is small at this target shape.
 
 ### Recommended thresholds (for the plugin)
 
