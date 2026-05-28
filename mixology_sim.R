@@ -84,9 +84,11 @@ TRIGGERS <- list(
   two_plus_lye   = function(o, d) sum(RESIN_MAT[o, 3L] > 0) >= 2,
   any_lye        = function(o, d) any(RESIN_MAT[o, 3L] > 0),
   has_mal        = function(o, d) any(o == MAL_ID),
+  # multi_resin: every order is a 2+-resin potion (no MMM/AAA/LLL).
+  # Equivalent formulation `no_single = !any(o %in% SINGLES)` was removed;
+  # both expressions describe the same condition.
   multi_resin    = function(o, d) all(rowSums(RESIN_MAT[o, , drop = FALSE] > 0) >= 2),
   no_mmm         = function(o, d) !any(o == MMM_ID),
-  no_single      = function(o, d) !any(o %in% SINGLES),
   not_all_single = function(o, d) !all(o %in% SINGLES),
   helps_deficit  = function(o, d) all(deficit_scores(o, d) > 0),
   # Fires when current lye resin is strictly greater than both current mox
@@ -392,7 +394,10 @@ default_policies <- list(
   has_mal         = make_policy("has_mal",        fallback = "best_deficit_one"),
   multi_resin     = make_policy("multi_resin",    fallback = "best_deficit_one"),
   skip_mmm        = make_policy("no_mmm",         fallback = "helpful_only"),
-  no_single       = make_policy("no_single",      fallback = "helpful_only"),
+  # Was: make_policy("no_single", fallback = "helpful_only"). The "no_single"
+  # trigger duplicated multi_resin in logic; multi_resin (with the more
+  # selective best_deficit_one fallback) dominates in every benchmark we
+  # ran, so the no_single policy was removed entirely.
   skip_all_single = make_policy("not_all_single", fallback = "best_deficit_one"),
   skip_no_lye     = make_policy("any_lye",        fallback = "best_deficit_one"),
   lye_ahead       = make_policy("lye_ahead",      fallback = "best_deficit_one"),
@@ -501,7 +506,7 @@ default_policies[["meta_d10_b05_h05"]]  <- make_meta_policy(0.10, 0.15, 0.05, 0.
 default_policies[["meta_d10_b05_h10"]]  <- make_meta_policy(0.10, 0.20, 0.05, 0.15)
 default_policies[["meta_d15_b05_h05"]]  <- make_meta_policy(0.15, 0.20, 0.05, 0.10)
 default_policies[["meta_d20_b05_h05"]]  <- make_meta_policy(0.20, 0.25, 0.05, 0.10)
-default_policies[["meta_d20_b10_h05"]]  <- make_meta_policy(0.20, 0.25, 0.10, 0.15)
+# meta_d20_b10_h05 omitted -- same parameters as meta_recommended above.
 default_policies[["meta_d30_b10_h05"]]  <- make_meta_policy(0.30, 0.35, 0.10, 0.15)
 default_policies[["meta_d20_b10_h02"]]  <- make_meta_policy(0.20, 0.22, 0.10, 0.12)
 default_policies[["meta_d20_b10_h10"]]  <- make_meta_policy(0.20, 0.30, 0.10, 0.20)
@@ -516,8 +521,8 @@ default_policies[["meta_d50_b20_h05"]]  <- make_meta_policy(0.50, 0.55, 0.20, 0.
 # permissive dual rule yields fewer total potions.
 default_policies[["meta_lenient_recommended"]] <- make_meta_policy(
         0.20, 0.25, 0.10, 0.15, pol_dual = "two_either_top2_bot")
-default_policies[["meta_lenient_d20_b10_h05"]] <- make_meta_policy(
-        0.20, 0.25, 0.10, 0.15, pol_dual = "two_either_top2_bot")
+# meta_lenient_d20_b10_h05 omitted -- same parameters as
+# meta_lenient_recommended above.
 default_policies[["meta_lenient_d30_b10_h05"]] <- make_meta_policy(
         0.30, 0.35, 0.10, 0.15, pol_dual = "two_either_top2_bot")
 default_policies[["meta_lenient_d20_b20_h05"]] <- make_meta_policy(
