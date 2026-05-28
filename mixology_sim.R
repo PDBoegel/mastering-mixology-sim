@@ -105,6 +105,60 @@ TRIGGERS <- list(
     cnt <- sum(RESIN_MAT[o, bn[1]] > 0 & RESIN_MAT[o, bn[2]] > 0)
     cnt >= 2L
   },
+  # Lenient variant of two_dual_bottleneck: fires when >= 2 of the 3
+  # orders give EITHER of the top-2 deficit colours (union, not the
+  # intersection). More permissive -- captures hands where 2 different
+  # slots cover the two top deficits separately.
+  two_either_top2 = function(o, d) {
+    d_pos <- pmax(d, 0)
+    if (sum(d_pos > 0) < 2L) return(FALSE)
+    bn <- order(d_pos, decreasing = TRUE)[1:2]
+    cnt <- sum(RESIN_MAT[o, bn[1]] > 0 | RESIN_MAT[o, bn[2]] > 0)
+    cnt >= 2L
+  },
+  # Hybrid: strict (intersection) when top-2 deficits are clearly apart;
+  # lenient (union) when they are effectively tied. Three variants below
+  # differ only in the "tied" threshold. Use the small one (01%) to barely
+  # smooth ties; the larger ones to be more aggressive.
+  two_dual_tied_01 = function(o, d) {
+    d_pos <- pmax(d, 0)
+    if (sum(d_pos > 0) < 2L) return(FALSE)
+    bn <- order(d_pos, decreasing = TRUE)[1:2]
+    if (d_pos[bn[1]] <= 0) return(FALSE)
+    g12 <- (d_pos[bn[1]] - d_pos[bn[2]]) / d_pos[bn[1]]
+    cnt <- if (g12 < 0.01) {
+      sum(RESIN_MAT[o, bn[1]] > 0 | RESIN_MAT[o, bn[2]] > 0)
+    } else {
+      sum(RESIN_MAT[o, bn[1]] > 0 & RESIN_MAT[o, bn[2]] > 0)
+    }
+    cnt >= 2L
+  },
+  two_dual_tied_05 = function(o, d) {
+    d_pos <- pmax(d, 0)
+    if (sum(d_pos > 0) < 2L) return(FALSE)
+    bn <- order(d_pos, decreasing = TRUE)[1:2]
+    if (d_pos[bn[1]] <= 0) return(FALSE)
+    g12 <- (d_pos[bn[1]] - d_pos[bn[2]]) / d_pos[bn[1]]
+    cnt <- if (g12 < 0.05) {
+      sum(RESIN_MAT[o, bn[1]] > 0 | RESIN_MAT[o, bn[2]] > 0)
+    } else {
+      sum(RESIN_MAT[o, bn[1]] > 0 & RESIN_MAT[o, bn[2]] > 0)
+    }
+    cnt >= 2L
+  },
+  two_dual_tied_10 = function(o, d) {
+    d_pos <- pmax(d, 0)
+    if (sum(d_pos > 0) < 2L) return(FALSE)
+    bn <- order(d_pos, decreasing = TRUE)[1:2]
+    if (d_pos[bn[1]] <= 0) return(FALSE)
+    g12 <- (d_pos[bn[1]] - d_pos[bn[2]]) / d_pos[bn[1]]
+    cnt <- if (g12 < 0.10) {
+      sum(RESIN_MAT[o, bn[1]] > 0 | RESIN_MAT[o, bn[2]] > 0)
+    } else {
+      sum(RESIN_MAT[o, bn[1]] > 0 & RESIN_MAT[o, bn[2]] > 0)
+    }
+    cnt >= 2L
+  },
   # Same as two_plus_lye, but gated on lye still being needed -- so it
   # won't keep batching for lye once lye has hit target.
   lye_needed_two_plus = function(o, d) {
@@ -366,6 +420,16 @@ default_policies <- list(
   hybrid_lye_dual = make_policy(c("lye_needed_two_plus", "two_dual_bottleneck"),
                                 "any", "bottleneck_color"),
 
+  # ---- Lenient dual: union-of-top-2 instead of intersection ----
+  # Static analogue of the user-proposed dual rule: >= 2 of 3 slots give
+  # EITHER top-1 or top-2 deficit colour. Triggers far more often than
+  # two_dual_bot.
+  two_either_top2_bot = make_policy("two_either_top2", fallback = "bottleneck_color"),
+  # ---- Tied-only lenient: strict normally, lenient when deficits ~tied
+  two_dual_tied_01_bot = make_policy("two_dual_tied_01", fallback = "bottleneck_color"),
+  two_dual_tied_05_bot = make_policy("two_dual_tied_05", fallback = "bottleneck_color"),
+  two_dual_tied_10_bot = make_policy("two_dual_tied_10", fallback = "bottleneck_color"),
+
   # ---- 1-step lookahead optimizer (heuristic; see STRATEGY.md Sec. 6) ----
   optimizer       = make_policy(fallback = "lookahead_greedy")
 )
@@ -445,6 +509,31 @@ default_policies[["meta_d25_b10_h05"]]  <- make_meta_policy(0.25, 0.30, 0.10, 0.
 default_policies[["meta_d40_b10_h05"]]  <- make_meta_policy(0.40, 0.45, 0.10, 0.15)
 default_policies[["meta_d20_b20_h05"]]  <- make_meta_policy(0.20, 0.25, 0.20, 0.25)
 default_policies[["meta_d50_b20_h05"]]  <- make_meta_policy(0.50, 0.55, 0.20, 0.25)
+
+# Lenient-dual meta variants -- same shape as the recommended grid but
+# the dual_bn sub-policy uses the union "either top-1 or top-2" rule
+# instead of the strict intersection. Tests the user's hunch that a more
+# permissive dual rule yields fewer total potions.
+default_policies[["meta_lenient_recommended"]] <- make_meta_policy(
+        0.20, 0.25, 0.10, 0.15, pol_dual = "two_either_top2_bot")
+default_policies[["meta_lenient_d20_b10_h05"]] <- make_meta_policy(
+        0.20, 0.25, 0.10, 0.15, pol_dual = "two_either_top2_bot")
+default_policies[["meta_lenient_d30_b10_h05"]] <- make_meta_policy(
+        0.30, 0.35, 0.10, 0.15, pol_dual = "two_either_top2_bot")
+default_policies[["meta_lenient_d20_b20_h05"]] <- make_meta_policy(
+        0.20, 0.25, 0.20, 0.25, pol_dual = "two_either_top2_bot")
+default_policies[["meta_lenient_d50_b20_h05"]] <- make_meta_policy(
+        0.50, 0.55, 0.20, 0.25, pol_dual = "two_either_top2_bot")
+
+# Tied-only-lenient meta variants -- recommended thresholds but the
+# dual_bn sub-policy uses the hybrid trigger that only goes lenient when
+# top-2 deficits are essentially tied (gap < 1/5/10%).
+default_policies[["meta_tied_01"]] <- make_meta_policy(
+        0.20, 0.25, 0.10, 0.15, pol_dual = "two_dual_tied_01_bot")
+default_policies[["meta_tied_05"]] <- make_meta_policy(
+        0.20, 0.25, 0.10, 0.15, pol_dual = "two_dual_tied_05_bot")
+default_policies[["meta_tied_10"]] <- make_meta_policy(
+        0.20, 0.25, 0.10, 0.15, pol_dual = "two_dual_tied_10_bot")
 
 # ---- Self-test --------------------------------------------------------------
 

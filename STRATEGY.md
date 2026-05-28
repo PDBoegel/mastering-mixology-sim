@@ -427,8 +427,109 @@ sections `TRIGGERS`, `FALLBACKS`):
 
 ---
 
-## 10. Caveats and open questions
+## 10. Appendix: dual_bn rule investigation (lenient variants)
 
+Plugin users reported that the `dual_bn` state's recommendation
+**oscillates** when the top-2 deficit colours are nearly tied. Concrete
+example with a hand of `LLL / AAM / MMM`:
+
+| Scenario | Top-1 deficit | Slots giving top-1 | `singleBn` fallback | Recommendation |
+|---|---|---|---|---|
+| Mox larger by 1 unit | mox | 2 (AAM, MMM) | ≥ 2 → batch | **Brew all 3** |
+| Lye larger by 1 unit | lye | 1 (LLL) | < 2 → submit only | **Brew just LLL** |
+
+A 2-unit swing in the deficit flips the recommendation from 3 potions to
+1. This is structurally because the cascade asks "≥ 2 slots give *top-1*"
+— a question that's asymmetric in any hand that splits the two colours
+unevenly.
+
+We tested three classes of fix.
+
+### Variant A: full lenient
+
+Replace `dual_bn`'s "≥ 2 give *both* top-2 colours" with **"≥ 2 give
+*either*"** (union instead of intersection). Symmetric in the user's
+example, fires on every hand with 2 slots covering either top-2 colour.
+
+### Variant B: tied-only lenient
+
+Strict by default, but switch to lenient whenever `gap_12 < T_tied`. The
+idea: only relax when the colours are actually tied, not on every dual-bn
+turn. Three thresholds tested: `T_tied ∈ { 1 %, 5 %, 10 % }`.
+
+### Variant C: keep strict (status quo)
+
+The cascade as-is.
+
+### Results
+
+Two targets benchmarked at 1 000 trials per policy. Greedy baseline shown
+for scale.
+
+#### 61 k / 53 k / 71 k (lye-dominant, full reward set)
+
+| Variant | Mean potions | Δ vs strict |
+|---|---:|---:|
+| Strict (`meta_recommended`) | **4,612** | — |
+| `meta_lenient_recommended` | 4,739 | +127 |
+| `two_dual_bot` (static, strict) | 4,728 | — |
+| `two_either_top2_bot` (static, lenient) | 4,962 | +234 |
+| greedy | 5,287 | +675 |
+
+#### 30 k / 20 k / 30 k (mox = lye tied, aga lower)
+
+| Variant | Mean potions | Δ vs strict |
+|---|---:|---:|
+| Strict (`meta_recommended`) | **2,062** | — |
+| `meta_tied_01` (1 % tied window) | 2,172 | +110 |
+| `meta_tied_05` (5 % tied window) | 2,192 | +130 |
+| `meta_tied_10` (10 % tied window) | 2,196 | +134 |
+| `meta_lenient_recommended` (full lenient) | 2,197 | +135 |
+| `two_dual_bot` (static, strict) | 2,064 | — |
+| `two_either_top2_bot` (static, lenient) | 2,214 | +150 |
+| greedy | 2,281 | +217 |
+
+### Why even the 1 % tied window costs ~5 %
+
+While the meta is in `dual_bn`, the sub-policy itself works to keep top-1
+and top-2 close — that's the whole point of dual-bn behaviour. So
+`gap_12` actually spends a great deal of time near 0 %, not at the
+20 % entry boundary. A 1 % tied window therefore fires often, and
+each firing pays the lenient-rule's structural inefficiency.
+
+### Why the lenient rule is structurally worse
+
+A +40 % three-batch is profitable only when the third potion *also*
+contributes useful resin. The strict rule fires only when ≥ 2 slots
+already give both top-2 colours, which means the batch is dense — the
+third potion typically contributes to one of the two top deficits via the
+overlap. The lenient rule fires more often but on sparser hands; the
+"third potion" in many of those batches contributes to a colour that is
+either over-supplied (overshoot) or further down the deficit list. The
++40 % bonus on that potion doesn't pay for the extra potion's cost.
+
+### Recommendation
+
+**Keep the strict cascade as the production rule.** The asymmetric
+visual behaviour at near-tied deficits is real but cheap to tolerate
+(~5–6 % per run); smoothing it out under any of the tested rules costs
+substantially more (~5 % on average, all the way up to ~6.5 % for the
+full lenient).
+
+If the visual flipping is a UX concern for end users (and the data shows
+it's the most painful at the very last few percent of the run), a
+plausible untested fix is to gate on **absolute** rather than relative
+gap — e.g., "treat as tied when `|d_max − d_mid| < 30`" (one potion's
+worth of resin). This would only kick in within a few potions of full
+completion, leaving the rest of the run on the strict rule. Adding and
+benchmarking that variant is left as an open follow-up.
+
+---
+
+## 11. Caveats and open questions
+
+* See Section 10 above for the lenient-dual investigation; **the strict
+  rule remains the recommended production behaviour**.
 * The R 4.5.2 / Windows instability is real and reproducible. All
   long-running runs use chunked Rscript invocations and an automatic
   retry-on-segfault loop. The R 4.5.2 JIT can also corrupt closure-captured
